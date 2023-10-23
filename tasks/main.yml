@@ -1,0 +1,20 @@
+---
+- name: Get all domain users
+  ansible.windows.win_powershell:
+    script: |
+      Get-ADUser -Filter * | Select -Exp SamAccountName
+  register: users_result
+
+- name: Parse the user result to a list
+  ansible.builtin.set_fact:
+    domain_users: "{{ users_result.output | reject('search', 'Administrator') | reject('search', 'krbtgt') | reject('search', 'Guest') | list }}"
+
+- name: Get {{ num_asreproastable_users }} random users
+  ansible.builtin.set_fact:
+    asreproastable_users: "{{ (domain_users | shuffle)[:num_asreproastable_users] }}"
+
+- name: Set DoesNotRequirePreAuth attribute on users
+  ansible.windows.win_powershell:
+    script: |
+      Set-ADAccountControl -Identity {{ item }} -DoesNotRequirePreAuth:$true
+  loop: '{{ asreproastable_users }}'
